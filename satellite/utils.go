@@ -28,6 +28,6 @@ func toPrettyJSON(v any) string {
 }
 
 // pointerTo returns a pointer to a given value.
-func pointerTo[T any](value T) *T {
-	return &value
-}
+// func pointerTo[T any](value T) *T {
+// 	return &value
+// }

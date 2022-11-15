@@ -18,7 +18,7 @@ func tableSatelliteHost(_ context.Context) *plugin.Table {
 		Columns: []*plugin.Column{
 			{
 				Name:        "id",
-				Type:        proto.ColumnType_STRING,
+				Type:        proto.ColumnType_INT,
 				Description: "The host id",
 			},
 			{
@@ -27,9 +27,24 @@ func tableSatelliteHost(_ context.Context) *plugin.Table {
 				Description: "The name of the host.",
 			},
 			{
-				Name:        "test",
+				Name:        "organization",
 				Type:        proto.ColumnType_STRING,
-				Description: "Test data",
+				Description: "The organisation managing the host.",
+			},
+			{
+				Name:        "ipv4_address",
+				Type:        proto.ColumnType_STRING,
+				Description: "The IPv4 address of the host.",
+			},
+			{
+				Name:        "ipv6_address",
+				Type:        proto.ColumnType_STRING,
+				Description: "The IPv6 address of the host.",
+			},
+			{
+				Name:        "mac_address",
+				Type:        proto.ColumnType_STRING,
+				Description: "The MAC address of the host.",
 			},
 		},
 		List: &plugin.ListConfig{
@@ -42,16 +57,29 @@ func tableSatelliteHost(_ context.Context) *plugin.Table {
 			},
 		},
 		Get: &plugin.GetConfig{
-			KeyColumns: plugin.SingleColumn("id"),
-			Hydrate:    getSatelliteHost,
+			KeyColumns: plugin.KeyColumnSlice{
+				&plugin.KeyColumn{
+					Name:    "id",
+					Require: plugin.Optional,
+				},
+				&plugin.KeyColumn{
+					Name:    "name",
+					Require: plugin.Optional,
+				},
+			},
+			// plugin.SingleColumn("id"),
+			Hydrate: getSatelliteHost,
 		},
 	}
 }
 
 type satelliteHost struct {
-	ID   string
-	Name string
-	Test string
+	ID           int
+	Name         string
+	Organization string
+	Ipv4Address  string
+	Ipv6Address  string
+	MacAddress   string
 }
 
 //// LIST FUNCTIONS
@@ -66,15 +94,10 @@ func listSatelliteHost(ctx context.Context, d *plugin.QueryData, h *plugin.Hydra
 		return nil, err
 	}
 
-	if client == nil {
-		plugin.Logger(ctx).Error("client is nil")
-		return nil, errors.New("invalid client")
-	}
-
-	request := client.R()
-
-	// TODO: temporarily gather only part of the data
-	request.SetQueryParam("thin", "true")
+	request := client.
+		R().
+		SetContext(ctx).
+		SetQueryParam("thin", "true") // TODO: temporarily gather only part of the data
 
 	result := &struct {
 		Total    int    `json:"total"`
@@ -109,19 +132,54 @@ func listSatelliteHost(ctx context.Context, d *plugin.QueryData, h *plugin.Hydra
 func getSatelliteHost(ctx context.Context, d *plugin.QueryData, h *plugin.HydrateData) (interface{}, error) {
 	setLogLevel(ctx, d)
 
-	return &satelliteHost{
-		ID:   "<id>",
-		Name: "<name>",
-		Test: "<test data>",
-	}, nil
+	id := ""
+	if val, ok := d.KeyColumnQuals["id"]; ok {
+		plugin.Logger(ctx).Debug("retrieving satellite host by id", "id", id)
+		id = fmt.Sprintf("%d", val.GetInt64Value())
+	} else if val, ok := d.KeyColumnQuals["name"]; ok {
+		plugin.Logger(ctx).Debug("retrieving satellite host by name", "name", id)
+		id = val.GetStringValue()
+	} else {
+		plugin.Logger(ctx).Error("no valid key provided")
+		return nil, errors.New("no valid key provided")
+	}
+
+	client, err := getClient(ctx, d)
+	if err != nil {
+		plugin.Logger(ctx).Error("error retrieving satellite client", "error", err)
+		return nil, err
+	}
+
+	request := client.
+		R().
+		SetContext(ctx).
+		SetQueryParam("thin", "true") // TODO: temporarily gather only part of the data
+
+	request = request.SetPathParam("id", id)
+
+	host := &apiHost{}
+	request.SetResult(host)
+	_, err = request.Get("/hosts/{id}")
+	if err != nil {
+		plugin.Logger(ctx).Error("error performing request", "error", err)
+		return nil, err
+	}
+	plugin.Logger(ctx).Debug("request successful", "host", toPrettyJSON(host))
+
+	return buildSatelliteHost(ctx, host), nil
 }
 
 func buildSatelliteHost(ctx context.Context, host *apiHost) *satelliteHost {
 
+	plugin.Logger(ctx).Debug("converting API result", "result", toPrettyJSON(host))
+
 	result := &satelliteHost{
-		ID:   fmt.Sprintf("%d", host.ID),
-		Name: host.Name,
-		Test: host.CertName,
+		ID:           host.ID,
+		Name:         host.Name,
+		Organization: host.OrganizationName,
+		Ipv4Address:  host.IPv4,
+		Ipv6Address:  host.IPv6,
+		MacAddress:   host.MACAddress,
 	}
 
 	plugin.Logger(ctx).Debug("returning host", "host", toPrettyJSON(result))
