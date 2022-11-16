@@ -4,9 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/turbot/steampipe-plugin-sdk/grpc/proto"
 	"github.com/turbot/steampipe-plugin-sdk/plugin"
+	"github.com/turbot/steampipe-plugin-sdk/plugin/transform"
 )
 
 //// TABLE DEFINITION
@@ -30,21 +32,192 @@ func tableSatelliteHost(_ context.Context) *plugin.Table {
 				Name:        "organization",
 				Type:        proto.ColumnType_STRING,
 				Description: "The organisation managing the host.",
+				Transform:   transform.FromField("OrganizationName"),
+			},
+			{
+				Name:        "model",
+				Type:        proto.ColumnType_STRING,
+				Description: "The machine's model.",
+				Transform:   transform.FromField("ModelName"),
 			},
 			{
 				Name:        "ipv4_address",
 				Type:        proto.ColumnType_STRING,
 				Description: "The IPv4 address of the host.",
+				Transform:   transform.FromField("IPv4"),
 			},
 			{
 				Name:        "ipv6_address",
 				Type:        proto.ColumnType_STRING,
 				Description: "The IPv6 address of the host.",
+				Transform:   transform.FromField("IPv6"),
 			},
 			{
 				Name:        "mac_address",
 				Type:        proto.ColumnType_STRING,
 				Description: "The MAC address of the host.",
+				Transform:   transform.FromField("MACAddress"),
+			},
+			{
+				Name:        "architecture",
+				Type:        proto.ColumnType_STRING,
+				Description: "The machine architecture of the host.",
+				Transform:   transform.FromField("ArchitectureName"),
+			},
+			{
+				Name:        "operating_system",
+				Type:        proto.ColumnType_STRING,
+				Description: "The operating system of the host.",
+				Transform:   transform.FromField("OperatingSystemName"),
+			},
+			{
+				Name:        "environment",
+				Type:        proto.ColumnType_STRING,
+				Description: "The name of the machine's environment.",
+				Transform:   transform.FromField("EnvironmentName"),
+			},
+			{
+				Name:        "host_group_name",
+				Type:        proto.ColumnType_STRING,
+				Description: "The name of the machine's host group.",
+				Transform:   transform.FromField("HostGroupName"),
+			},
+			{
+				Name:        "host_group_title",
+				Type:        proto.ColumnType_STRING,
+				Description: "The title of the machine's host group.",
+				Transform:   transform.FromField("HostGroupTitle"),
+			},
+			{
+				Name:        "compute_resource",
+				Type:        proto.ColumnType_STRING,
+				Description: "The machine's compute resource.",
+				Transform:   transform.FromField("ComputeResourceName"),
+			},
+			{
+				Name:        "compute_profile",
+				Type:        proto.ColumnType_STRING,
+				Description: "The machine's compute profile.",
+				Transform:   transform.FromField("ComputeProfileName"),
+			},
+			{
+				Name:        "realm",
+				Type:        proto.ColumnType_STRING,
+				Description: "The name of the machine's realm.",
+				Transform:   transform.FromField("RealmName"),
+			},
+			{
+				Name:        "image_file",
+				Type:        proto.ColumnType_STRING,
+				Description: "The machine's image file.",
+				Transform:   transform.FromField("ImageFile"),
+			},
+			{
+				Name:        "provision_method",
+				Type:        proto.ColumnType_STRING,
+				Description: "The machine's provision method.",
+				Transform:   transform.FromField("ProvisionMethod"),
+			},
+			{
+				Name:        "pxe_loader",
+				Type:        proto.ColumnType_STRING,
+				Description: "The machine's PXE loader info.",
+				Transform:   transform.FromField("PXELoader"),
+			},
+			{
+				Name:        "created_at",
+				Type:        proto.ColumnType_STRING,
+				Description: "The machine's creation time.",
+				Transform: &transform.ColumnTransforms{
+					Transforms: []*transform.TransformCall{
+						{
+							Transform: transform.FieldValueGo,
+							Param:     "CreatedAt",
+						},
+						{
+							Transform: func(ctx context.Context, d *transform.TransformData) (interface{}, error) {
+								if t, ok := d.Value.(fmt.Stringer); ok {
+									return t.String(), nil
+								}
+								return nil, fmt.Errorf("invalid data type: %T", d.Value)
+							},
+							Param: nil,
+						},
+					},
+				},
+			},
+			{
+				Name:        "updated_at",
+				Type:        proto.ColumnType_STRING,
+				Description: "The machine's update time.",
+				Transform:   FromStringerField("UpdatedAt"),
+			},
+			{
+				Name:        "installed_at",
+				Type:        proto.ColumnType_STRING,
+				Description: "The machine's installation time.",
+				Transform:   FromStringerField("InstalledAt"),
+			},
+			{
+				Name:        "enabled",
+				Type:        proto.ColumnType_BOOL,
+				Description: "The machine's enablement status.",
+				Transform:   transform.FromField("Enabled"),
+			},
+			{
+				Name:        "managed",
+				Type:        proto.ColumnType_STRING,
+				Description: "Whether the machine is managed.",
+				Transform:   transform.FromField("Managed"),
+			},
+			{
+				Name:        "uptime_seconds",
+				Type:        proto.ColumnType_INT,
+				Description: "The machine's uptime in seconds.",
+				Transform:   transform.FromField("UptimeSeconds"),
+			},
+			{
+				Name:        "uptime_duration",
+				Type:        proto.ColumnType_STRING,
+				Description: "The machine's uptime in seconds.",
+				Transform: &transform.ColumnTransforms{
+					Transforms: []*transform.TransformCall{
+						{
+							Transform: transform.FieldValue,
+							Param:     "UptimeSeconds",
+						},
+						{
+							Transform: func(ctx context.Context, d *transform.TransformData) (any, error) {
+								return time.Duration(d.Value.(int) * 1_000_000_000).Round(time.Second).String(), nil
+							},
+							Param: nil,
+						},
+					},
+				},
+			},
+			{
+				Name:        "global_status",
+				Type:        proto.ColumnType_STRING,
+				Description: "The global machine status.",
+				Transform:   transform.FromField("GlobalStatusLabel"),
+			},
+			{
+				Name:        "errata_status",
+				Type:        proto.ColumnType_STRING,
+				Description: "The machine's errata status.",
+				Transform:   transform.FromField("ErrataStatusLabel"),
+			},
+			{
+				Name:        "purpose_status",
+				Type:        proto.ColumnType_STRING,
+				Description: "The machine's purpose status.",
+				Transform:   transform.FromField("PurposeStatusLabel"),
+			},
+			{
+				Name:        "subscription_status",
+				Type:        proto.ColumnType_STRING,
+				Description: "The machine subscription status.",
+				Transform:   transform.FromField("SubscriptionStatusLabel"),
 			},
 		},
 		List: &plugin.ListConfig{
@@ -71,15 +244,6 @@ func tableSatelliteHost(_ context.Context) *plugin.Table {
 			Hydrate: getSatelliteHost,
 		},
 	}
-}
-
-type satelliteHost struct {
-	ID           int
-	Name         string
-	Organization string
-	Ipv4Address  string
-	Ipv6Address  string
-	MacAddress   string
 }
 
 //// LIST FUNCTIONS
@@ -121,7 +285,7 @@ func listSatelliteHost(ctx context.Context, d *plugin.QueryData, h *plugin.Hydra
 	plugin.Logger(ctx).Debug("request successful", "total", result.Total, "subtotal", result.Subtotal, "page", result.Page, "per page", result.PerPage)
 
 	for _, host := range result.Hosts {
-		d.StreamListItem(ctx, buildSatelliteHost(ctx, &host))
+		d.StreamListItem(ctx, &host)
 	}
 
 	return nil, nil
@@ -166,24 +330,7 @@ func getSatelliteHost(ctx context.Context, d *plugin.QueryData, h *plugin.Hydrat
 	}
 	plugin.Logger(ctx).Debug("request successful", "host", toPrettyJSON(host))
 
-	return buildSatelliteHost(ctx, host), nil
-}
-
-func buildSatelliteHost(ctx context.Context, host *apiHost) *satelliteHost {
-
-	plugin.Logger(ctx).Debug("converting API result", "result", toPrettyJSON(host))
-
-	result := &satelliteHost{
-		ID:           host.ID,
-		Name:         host.Name,
-		Organization: host.OrganizationName,
-		Ipv4Address:  host.IPv4,
-		Ipv6Address:  host.IPv6,
-		MacAddress:   host.MACAddress,
-	}
-
-	plugin.Logger(ctx).Debug("returning host", "host", toPrettyJSON(result))
-	return result
+	return host, nil
 }
 
 type apiHost struct {
@@ -217,7 +364,7 @@ type apiHost struct {
 	Build                    bool        `json:"build,omitempty" yaml:"build,omitempty"`
 	Comment                  interface{} `json:"comment,omitempty" yaml:"comment,omitempty"`
 	Disk                     interface{} `json:"disk,omitempty" yaml:"disk,omitempty"`
-	InstalledAt              string      `json:"installed_at,omitempty" yaml:"installed_at,omitempty"`
+	InstalledAt              *Time       `json:"installed_at,omitempty" yaml:"installed_at,omitempty"`
 	ModelID                  int         `json:"model_id,omitempty" yaml:"model_id,omitempty"`
 	OwnerID                  int         `json:"owner_id,omitempty" yaml:"owner_id,omitempty"`
 	OwnerName                string      `json:"owner_name,omitempty" yaml:"owner_name,omitempty"`
