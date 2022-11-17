@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/turbot/steampipe-plugin-sdk/grpc/proto"
 	"github.com/turbot/steampipe-plugin-sdk/plugin"
@@ -22,11 +21,13 @@ func tableSatelliteHost(_ context.Context) *plugin.Table {
 				Name:        "id",
 				Type:        proto.ColumnType_INT,
 				Description: "The host id",
+				Transform:   transform.FromField("ID"),
 			},
 			{
 				Name:        "name",
 				Type:        proto.ColumnType_STRING,
 				Description: "The name of the host.",
+				Transform:   transform.FromField("Name"),
 			},
 			{
 				Name:        "organization",
@@ -128,35 +129,19 @@ func tableSatelliteHost(_ context.Context) *plugin.Table {
 				Name:        "created_at",
 				Type:        proto.ColumnType_STRING,
 				Description: "The machine's creation time.",
-				Transform: &transform.ColumnTransforms{
-					Transforms: []*transform.TransformCall{
-						{
-							Transform: transform.FieldValueGo,
-							Param:     "CreatedAt",
-						},
-						{
-							Transform: func(ctx context.Context, d *transform.TransformData) (interface{}, error) {
-								if t, ok := d.Value.(fmt.Stringer); ok {
-									return t.String(), nil
-								}
-								return nil, fmt.Errorf("invalid data type: %T", d.Value)
-							},
-							Param: nil,
-						},
-					},
-				},
+				Transform:   TransformFromTimeField("CreatedAt"),
 			},
 			{
 				Name:        "updated_at",
 				Type:        proto.ColumnType_STRING,
 				Description: "The machine's update time.",
-				Transform:   FromStringerField("UpdatedAt"),
+				Transform:   TransformFromTimeField("UpdatedAt"),
 			},
 			{
 				Name:        "installed_at",
 				Type:        proto.ColumnType_STRING,
 				Description: "The machine's installation time.",
-				Transform:   FromStringerField("InstalledAt"),
+				Transform:   TransformFromTimeField("InstalledAt"),
 			},
 			{
 				Name:        "enabled",
@@ -180,20 +165,7 @@ func tableSatelliteHost(_ context.Context) *plugin.Table {
 				Name:        "uptime_duration",
 				Type:        proto.ColumnType_STRING,
 				Description: "The machine's uptime in seconds.",
-				Transform: &transform.ColumnTransforms{
-					Transforms: []*transform.TransformCall{
-						{
-							Transform: transform.FieldValue,
-							Param:     "UptimeSeconds",
-						},
-						{
-							Transform: func(ctx context.Context, d *transform.TransformData) (any, error) {
-								return time.Duration(d.Value.(int) * 1_000_000_000).Round(time.Second).String(), nil
-							},
-							Param: nil,
-						},
-					},
-				},
+				Transform:   TransformFromIntFieldToDuration("UptimeSeconds"),
 			},
 			{
 				Name:        "global_status",
@@ -224,14 +196,6 @@ func tableSatelliteHost(_ context.Context) *plugin.Table {
 			Hydrate: listSatelliteHost,
 			KeyColumns: plugin.KeyColumnSlice{
 				&plugin.KeyColumn{
-					Name:    "name",
-					Require: plugin.Optional,
-				},
-			},
-		},
-		Get: &plugin.GetConfig{
-			KeyColumns: plugin.KeyColumnSlice{
-				&plugin.KeyColumn{
 					Name:    "id",
 					Require: plugin.Optional,
 				},
@@ -240,8 +204,20 @@ func tableSatelliteHost(_ context.Context) *plugin.Table {
 					Require: plugin.Optional,
 				},
 			},
-			// plugin.SingleColumn("id"),
+		},
+		Get: &plugin.GetConfig{
 			Hydrate: getSatelliteHost,
+			KeyColumns: plugin.KeyColumnSlice{
+				&plugin.KeyColumn{
+					Name:    "id",
+					Require: plugin.AnyOf,
+				},
+				&plugin.KeyColumn{
+					Name:    "name",
+					Require: plugin.AnyOf,
+				},
+			},
+			//			KeyColumns: plugin.SingleColumn("id"),
 		},
 	}
 }
@@ -260,8 +236,7 @@ func listSatelliteHost(ctx context.Context, d *plugin.QueryData, h *plugin.Hydra
 
 	request := client.
 		R().
-		SetContext(ctx).
-		SetQueryParam("thin", "true") // TODO: temporarily gather only part of the data
+		SetContext(ctx)
 
 	result := &struct {
 		Total    int    `json:"total"`
@@ -285,6 +260,7 @@ func listSatelliteHost(ctx context.Context, d *plugin.QueryData, h *plugin.Hydra
 	plugin.Logger(ctx).Debug("request successful", "total", result.Total, "subtotal", result.Subtotal, "page", result.Page, "per page", result.PerPage)
 
 	for _, host := range result.Hosts {
+		host := host
 		d.StreamListItem(ctx, &host)
 	}
 
@@ -316,8 +292,7 @@ func getSatelliteHost(ctx context.Context, d *plugin.QueryData, h *plugin.Hydrat
 
 	request := client.
 		R().
-		SetContext(ctx).
-		SetQueryParam("thin", "true") // TODO: temporarily gather only part of the data
+		SetContext(ctx)
 
 	request = request.SetPathParam("id", id)
 

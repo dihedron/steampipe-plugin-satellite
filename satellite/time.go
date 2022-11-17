@@ -43,3 +43,10 @@ func (t *Time) String() string {
 	}
 	return time.Time(*t).Format(layout)
 }
+
+func (t *Time) IsZero() bool {
+	if t == nil {
+		return true
+	}
+	return time.Time(*t).IsZero()
+}
