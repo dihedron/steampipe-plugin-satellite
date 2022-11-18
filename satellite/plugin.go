@@ -14,6 +14,7 @@ func Plugin(ctx context.Context) *plugin.Plugin {
 		TableMap: map[string]*plugin.Table{
 			"satellite_host":         tableSatelliteHost(ctx),
 			"satellite_host_package": tableSatelliteHostPackage(ctx),
+			"satellite_host_errata":  tableSatelliteHostErrata(ctx),
 		},
 		ConnectionConfigSchema: &plugin.ConnectionConfigSchema{
 			NewInstance: ConfigInstance,
