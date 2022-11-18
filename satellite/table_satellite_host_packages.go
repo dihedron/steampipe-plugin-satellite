@@ -20,13 +20,13 @@ func tableSatelliteHostPackage(_ context.Context) *plugin.Table {
 			{
 				Name:        "id",
 				Type:        proto.ColumnType_INT,
-				Description: "The id of the host having the package.",
+				Description: "The id of the package.",
 				Transform:   transform.FromField("ID"),
 			},
 			{
 				Name:        "name",
 				Type:        proto.ColumnType_STRING,
-				Description: "The name of the host.",
+				Description: "The name of the package.",
 				Transform:   transform.FromField("Name"),
 			},
 			{
@@ -41,16 +41,28 @@ func tableSatelliteHostPackage(_ context.Context) *plugin.Table {
 				Description: "The Name, Version, Release and Architecture (NVRA) of the package.",
 				Transform:   transform.FromField("NVRA"),
 			},
+			{
+				Name:        "host_id",
+				Type:        proto.ColumnType_INT,
+				Description: "The id of the host having the package.",
+				Transform:   transform.FromField("HostID"),
+			},
+			{
+				Name:        "host_name",
+				Type:        proto.ColumnType_STRING,
+				Description: "The name of the host having the package.",
+				Transform:   transform.FromField("HostName"),
+			},
 		},
 		List: &plugin.ListConfig{
 			Hydrate: listSatelliteHostPackage,
 			KeyColumns: plugin.KeyColumnSlice{
 				&plugin.KeyColumn{
-					Name:    "id",
+					Name:    "host_id",
 					Require: plugin.AnyOf,
 				},
 				&plugin.KeyColumn{
-					Name:    "name",
+					Name:    "host_name",
 					Require: plugin.AnyOf,
 				},
 			},
@@ -85,14 +97,15 @@ func listSatelliteHostPackage(ctx context.Context, d *plugin.QueryData, h *plugi
 	}
 
 	id := ""
-	value := d.KeyColumnQuals["id"].GetInt64Value()
-	if value != 0 {
-		id = fmt.Sprintf("%d", value)
+	hostid := d.KeyColumnQuals["host_id"].GetInt64Value()
+	hostname := d.KeyColumnQuals["host_name"].GetStringValue()
+	if hostid != 0 {
+		id = fmt.Sprintf("%d", hostid)
 	} else {
-		id = d.KeyColumnQuals["name"].GetStringValue()
+		id = hostname
 	}
 	if id == "" {
-		plugin.Logger(ctx).Error("no valid host id provided")
+		plugin.Logger(ctx).Error("no valid host id or name provided")
 		return nil, errors.New("no valid host id or name provided")
 	}
 
@@ -129,7 +142,15 @@ func listSatelliteHostPackage(ctx context.Context, d *plugin.QueryData, h *plugi
 	for _, pkg := range result.Packages {
 		pkg := pkg
 		plugin.Logger(ctx).Error("package", "contents", toJSON(pkg))
-		d.StreamListItem(ctx, pkg)
+		d.StreamListItem(ctx, &struct {
+			HostID   int    `json:"host_id,omitempty" yaml:"host_id,omitempty"`
+			HostName string `json:"host_name,omitempty" yaml:"host_name,omitempty"`
+			apiPackage
+		}{
+			HostID:     int(hostid),
+			HostName:   hostname,
+			apiPackage: pkg,
+		})
 	}
 
 	return nil, nil
