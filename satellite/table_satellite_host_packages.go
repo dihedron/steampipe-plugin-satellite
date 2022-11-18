@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/turbot/steampipe-plugin-sdk/grpc/proto"
 	"github.com/turbot/steampipe-plugin-sdk/plugin"
@@ -109,48 +110,83 @@ func listSatelliteHostPackage(ctx context.Context, d *plugin.QueryData, h *plugi
 		return nil, errors.New("no valid host id or name provided")
 	}
 
-	request := client.
-		R().
-		SetContext(ctx).
-		SetPathParam("id", id)
+	page := 1
+	for {
 
-	request.SetHeaders(map[string]string{
-		"Accept-Encoding": "gzip",
-		"Accept":          "text/html",
-	})
-	result := &struct {
-		Total    int         `json:"total"`
-		Subtotal int         `json:"subtotal"`
-		Page     int         `json:"page"`
-		PerPage  int         `json:"per_page"`
-		Error    interface{} `json:"error"`
-		Search   interface{} `json:"search"`
-		Sort     struct {
-			By    string `json:"by"`
-			Order string `json:"order"`
-		} `json:"sort"`
-		Packages []apiPackage `json:"results"`
-	}{}
-	request.SetResult(result)
-	_, err = request.Get("/hosts/{id}/packages")
-	if err != nil {
-		plugin.Logger(ctx).Error("error performing request", "error", err)
-		return nil, err
-	}
-	plugin.Logger(ctx).Error("request successful", "total", result.Total, "subtotal", result.Subtotal, "page", result.Page, "per page", result.PerPage) //, "response", toJSON(response.Body()))
+		request := client.
+			R().
+			SetContext(ctx).
+			SetPathParam("id", id).
+			SetQueryParam("page", fmt.Sprintf("%d", page))
 
-	for _, pkg := range result.Packages {
-		pkg := pkg
-		plugin.Logger(ctx).Error("package", "contents", toJSON(pkg))
-		d.StreamListItem(ctx, &struct {
-			HostID   int    `json:"host_id,omitempty" yaml:"host_id,omitempty"`
-			HostName string `json:"host_name,omitempty" yaml:"host_name,omitempty"`
-			apiPackage
-		}{
-			HostID:     int(hostid),
-			HostName:   hostname,
-			apiPackage: pkg,
+		request.SetHeaders(map[string]string{
+			"Accept-Encoding": "gzip",
+			"Accept":          "text/html",
 		})
+		result := &struct {
+			Total    int         `json:"total"`
+			Subtotal int         `json:"subtotal"`
+			Page     interface{} `json:"page"`
+			PerPage  int         `json:"per_page"`
+			Error    interface{} `json:"error"`
+			Search   interface{} `json:"search"`
+			Sort     struct {
+				By    string `json:"by"`
+				Order string `json:"order"`
+			} `json:"sort"`
+			Packages []apiPackage `json:"results"`
+		}{}
+		request.SetResult(result)
+		// response, err := request.Get(fmt.Sprintf("/hosts/{id}/packages?page=%d", page))
+		response, err := request.Get("/hosts/{id}/packages")
+		if err != nil {
+			plugin.Logger(ctx).Error("error performing request", "error", err, "response", toPrettyJSON(response.Body()))
+			return nil, err
+		}
+		plugin.Logger(ctx).Debug("request successful", "total", result.Total, "subtotal", result.Subtotal, "page", result.Page, "per page", result.PerPage, "response", toJSON(response.Body()))
+
+		for _, pkg := range result.Packages {
+			pkg := pkg
+			//plugin.Logger(ctx).Debug("package", "contents", toJSON(pkg))
+			d.StreamListItem(ctx, &struct {
+				HostID   int    `json:"host_id,omitempty" yaml:"host_id,omitempty"`
+				HostName string `json:"host_name,omitempty" yaml:"host_name,omitempty"`
+				apiPackage
+			}{
+				HostID:     int(hostid),
+				HostName:   hostname,
+				apiPackage: pkg,
+			})
+		}
+
+		// handle pagination. Note that the Satellite API returns results.Page as an
+		// integer if there is no page?{page} query  parameter, and as a string if you
+		// set one; thus we need to handle both cases
+		resultPage := 0
+		switch v := result.Page.(type) {
+		case int:
+			resultPage = v
+		case int32:
+			resultPage = int(v)
+		case int64:
+			resultPage = int(v)
+		case float32:
+			resultPage = int(v)
+		case float64:
+			resultPage = int(v)
+		case string:
+			resultPage, _ = strconv.Atoi(v)
+		default:
+			plugin.Logger(ctx).Debug("unsupported type in pagination", "type", fmt.Sprintf("%T", result.Page))
+			return nil, fmt.Errorf("unexpected type in pagination API result: %T", result.Page)
+		}
+		if result.PerPage*resultPage < result.Total {
+			page++
+			plugin.Logger(ctx).Debug("retrieving next page", "page", page)
+		} else {
+			plugin.Logger(ctx).Debug("all pages retrieved", "subtotal", result.Subtotal, "total", result.Total)
+			break
+		}
 	}
 
 	return nil, nil
