@@ -189,7 +189,7 @@ func listSatelliteHostPackage(ctx context.Context, d *plugin.QueryData, h *plugi
 			})
 		}
 
-		// handle pagination. Note that the Satellite API returns results.Page as an
+		// handle pagination; note that the Satellite API returns results.Page as an
 		// integer if there is no page?{page} query  parameter, and as a string if you
 		// set one; thus we need to handle both cases
 		resultPage := 0
