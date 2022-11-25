@@ -140,6 +140,12 @@ func tableSatelliteHostErrata(_ context.Context) *plugin.Table {
 				Description: "The name of the host having the package.",
 				Transform:   transform.FromField("HostName"),
 			},
+			{
+				Name:        "cves",
+				Type:        proto.ColumnType_JSON,
+				Description: "The CVE applicabe to this host.",
+				Transform:   transform.FromField("CVEs"),
+			},
 		},
 		List: &plugin.ListConfig{
 			Hydrate: listSatelliteHostErrata,
@@ -175,7 +181,7 @@ func tableSatelliteHostErrata(_ context.Context) *plugin.Table {
 
 func listSatelliteHostErrata(ctx context.Context, d *plugin.QueryData, h *plugin.HydrateData) (interface{}, error) {
 	setLogLevel(ctx, d)
-	plugin.Logger(ctx).Debug("retrieving satellite errata list for host", "query data", toJSON(d))
+	plugin.Logger(ctx).Debug("retrieving satellite errata list")
 
 	client, err := getClient(ctx, d)
 	if err != nil {
@@ -195,6 +201,8 @@ func listSatelliteHostErrata(ctx context.Context, d *plugin.QueryData, h *plugin
 		plugin.Logger(ctx).Error("no valid host id or name provided")
 		return nil, errors.New("no valid host id or name provided")
 	}
+
+	plugin.Logger(ctx).Debug("acquired host", "id", id)
 
 	page := 1
 	for {
@@ -223,9 +231,9 @@ func listSatelliteHostErrata(ctx context.Context, d *plugin.QueryData, h *plugin
 		}{}
 		request.SetResult(result)
 		response, err := request.Get("/hosts/{id}/errata")
-		if err != nil {
-			plugin.Logger(ctx).Error("error performing request", "error", err, "response", toPrettyJSON(response.Body()))
-			return nil, err
+		if err != nil || response.IsError() {
+			plugin.Logger(ctx).Error("error performing request", "url", response.Request.URL, "status", response, response.Status(), "error", err, "response", toPrettyJSON(response.Body()))
+			return nil, fmt.Errorf("request %q failed with status %d (%s): %w", response.Request.URL, response.StatusCode(), response.Status(), err)
 		}
 		plugin.Logger(ctx).Debug("request successful", "total", result.Total, "subtotal", result.Subtotal, "page", result.Page, "per page", result.PerPage, "response", toJSON(response.Body()))
 

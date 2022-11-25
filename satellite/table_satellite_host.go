@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/turbot/steampipe-plugin-sdk/v4/grpc/proto"
 	"github.com/turbot/steampipe-plugin-sdk/v4/plugin"
@@ -192,6 +193,12 @@ func tableSatelliteHost(_ context.Context) *plugin.Table {
 				Description: "The machine subscription status.",
 				Transform:   transform.FromField("SubscriptionStatusLabel"),
 			},
+			{
+				Name:        "facts",
+				Type:        proto.ColumnType_JSON,
+				Description: "The machine's facts.",
+				Transform:   transform.FromField("Facts"),
+			},
 		},
 		List: &plugin.ListConfig{
 			Hydrate: listSatelliteHost,
@@ -332,14 +339,65 @@ func getSatelliteHost(ctx context.Context, d *plugin.QueryData, h *plugin.Hydrat
 
 	host := &apiHost{}
 	request.SetResult(host)
-	_, err = request.Get("/hosts/{id}")
-	if err != nil {
-		plugin.Logger(ctx).Error("error performing request", "error", err)
+	response, err := request.Get("/hosts/{id}")
+	if err != nil || response.IsError() {
+		plugin.Logger(ctx).Error("error performing request", "url", response.Request.URL, "status", response.Status, "error", err)
+		if err != nil {
+			err = fmt.Errorf("error retrieving host %q via %q (status %d - %s, error %w)", id, response.Request.URL, response.StatusCode(), response.Status(), err)
+		} else {
+			err = fmt.Errorf("error resolving host %q via %q (status %d - %s)", id, response.Request.URL, response.StatusCode(), response.Status())
+		}
 		return nil, err
 	}
-	plugin.Logger(ctx).Debug("request successful", "host", toPrettyJSON(host))
 
+	plugin.Logger(ctx).Debug("request successful", "host", toPrettyJSON(host))
 	return host, nil
+}
+
+const SatelliteHostIDPrefix = "satellite_hostname::"
+
+func resolveHostID(ctx context.Context, d *plugin.QueryData, name string) (int, error) {
+	plugin.Logger(ctx).Debug("resolving host id by name", "name", name)
+
+	key := SatelliteHostIDPrefix + strings.ToLower(name)
+
+	// load id from cache, if available
+	if cachedData, ok := d.ConnectionManager.Cache.Get(key); ok {
+		plugin.Logger(ctx).Debug("returning satellite id from cache", key, cachedData.(int))
+		return cachedData.(int), nil
+	}
+
+	// acquire REST API client
+	client, err := getClient(ctx, d)
+	if err != nil {
+		plugin.Logger(ctx).Error("error retrieving satellite client", "error", err)
+		return 0, err
+	}
+
+	request := client.
+		R().
+		SetContext(ctx).
+		SetPathParam("id", name)
+
+	host := &apiHost{}
+	request.SetResult(host)
+	response, err := request.Get("/hosts/{id}")
+	if err != nil || response.IsError() {
+		plugin.Logger(ctx).Error("error performing request", "url", response.Request.URL, "status", response.Status, "error", err)
+		if err != nil {
+			err = fmt.Errorf("error resolving host id from name %q (status %d - %s, error %w)", response.Request.URL, response.StatusCode(), response.Status(), err)
+		} else {
+			err = fmt.Errorf("error resolving host id from name %q (status %d - %s)", response.Request.URL, response.StatusCode(), response.Status())
+		}
+		return 0, err
+	}
+	plugin.Logger(ctx).Debug("request successful", "name", strings.ToLower(name), "id", host.ID)
+
+	// save to cache
+	plugin.Logger(ctx).Debug("saving satellite id to cache", key, host.ID)
+	d.ConnectionManager.Cache.Set(key, client)
+
+	return host.ID, nil
 }
 
 type apiHost struct {

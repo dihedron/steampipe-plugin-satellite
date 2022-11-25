@@ -31,6 +31,33 @@ func tableSatelliteHostPackage(_ context.Context) *plugin.Table {
 				Transform:   transform.FromField("Name"),
 			},
 			{
+				Name:        "version",
+				Type:        proto.ColumnType_STRING,
+				Description: "The version of the package.",
+				Transform: transform.FromField("NVRA").Transform(func(ctx context.Context, d *transform.TransformData) (interface{}, error) {
+					_, ver, _, _, err := ParseNVRA(d.Value.(string))
+					return ver, err
+				}),
+			},
+			{
+				Name:        "release",
+				Type:        proto.ColumnType_STRING,
+				Description: "The release of the package.",
+				Transform: transform.FromField("NVRA").Transform(func(ctx context.Context, d *transform.TransformData) (interface{}, error) {
+					_, _, rel, _, err := ParseNVRA(d.Value.(string))
+					return rel, err
+				}),
+			},
+			{
+				Name:        "architecture",
+				Type:        proto.ColumnType_STRING,
+				Description: "The architecture of the package.",
+				Transform: transform.FromField("NVRA").Transform(func(ctx context.Context, d *transform.TransformData) (interface{}, error) {
+					_, _, _, arch, err := ParseNVRA(d.Value.(string))
+					return arch, err
+				}),
+			},
+			{
 				Name:        "nvrea",
 				Type:        proto.ColumnType_STRING,
 				Description: "The Name, Version, Release, Environment and Architecture (NVREA) of the package.",
@@ -98,13 +125,16 @@ func listSatelliteHostPackage(ctx context.Context, d *plugin.QueryData, h *plugi
 	}
 
 	id := ""
-	hostid := d.KeyColumnQuals["host_id"].GetInt64Value()
+	hostid := int(d.KeyColumnQuals["host_id"].GetInt64Value())
 	hostname := d.KeyColumnQuals["host_name"].GetStringValue()
-	if hostid != 0 {
-		id = fmt.Sprintf("%d", hostid)
-	} else {
-		id = hostname
+	if hostid == 0 {
+		hostid, err = resolveHostID(ctx, d, hostname)
+		if err != nil {
+			plugin.Logger(ctx).Error("error resolving host by name", "name", hostname)
+			return nil, err
+		}
 	}
+	id = fmt.Sprintf("%d", hostid)
 	if id == "" {
 		plugin.Logger(ctx).Error("no valid host id or name provided")
 		return nil, errors.New("no valid host id or name provided")
@@ -112,13 +142,11 @@ func listSatelliteHostPackage(ctx context.Context, d *plugin.QueryData, h *plugi
 
 	page := 1
 	for {
-
 		request := client.
 			R().
 			SetContext(ctx).
 			SetPathParam("id", id).
 			SetQueryParam("page", fmt.Sprintf("%d", page))
-
 		request.SetHeaders(map[string]string{
 			"Accept-Encoding": "gzip",
 			"Accept":          "text/html",
@@ -137,13 +165,15 @@ func listSatelliteHostPackage(ctx context.Context, d *plugin.QueryData, h *plugi
 			Packages []apiPackage `json:"results"`
 		}{}
 		request.SetResult(result)
+		plugin.Logger(ctx).Debug("running request", "id", id)
 		// response, err := request.Get(fmt.Sprintf("/hosts/{id}/packages?page=%d", page))
 		response, err := request.Get("/hosts/{id}/packages")
-		if err != nil {
-			plugin.Logger(ctx).Error("error performing request", "error", err, "response", toPrettyJSON(response.Body()))
-			return nil, err
+
+		if err != nil || response.IsError() {
+			plugin.Logger(ctx).Error("error performing request", "status", response.Status(), "error", err, "response", toPrettyJSON(response.Body()))
+			return nil, fmt.Errorf("request %q error %d (%s): %w", request.URL, response.StatusCode(), response.Status(), err)
 		}
-		plugin.Logger(ctx).Debug("request successful", "total", result.Total, "subtotal", result.Subtotal, "page", result.Page, "per page", result.PerPage, "response", toJSON(response.Body()))
+		plugin.Logger(ctx).Debug("request successful", "status", response.Status(), "total", result.Total, "subtotal", result.Subtotal, "page", result.Page, "per page", result.PerPage, "response", toJSON(response.Body()))
 
 		for _, pkg := range result.Packages {
 			pkg := pkg
