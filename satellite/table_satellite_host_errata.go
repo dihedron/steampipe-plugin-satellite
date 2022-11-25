@@ -126,7 +126,24 @@ func tableSatelliteHostErrata(_ context.Context) *plugin.Table {
 				Description: "Whether the errata is installable.",
 				Transform:   transform.FromField("Installable"),
 			},
-			// TODO: 			ModuleStreams        []interface{} `json:"module_streams"`
+			{
+				Name:        "cves",
+				Type:        proto.ColumnType_JSON,
+				Description: "The CVE applicable to this host.",
+				Transform:   transform.FromField("CVEs"),
+			},
+			{
+				Name:        "bugs",
+				Type:        proto.ColumnType_JSON,
+				Description: "The bugs applicable to this host.",
+				Transform:   transform.FromField("Bugs"),
+			},
+			{
+				Name:        "module_streams",
+				Type:        proto.ColumnType_JSON,
+				Description: "The module streams applicable to this host.",
+				Transform:   transform.FromField("ModuleStreams"),
+			},
 			// join columns
 			{
 				Name:        "host_id",
@@ -139,12 +156,6 @@ func tableSatelliteHostErrata(_ context.Context) *plugin.Table {
 				Type:        proto.ColumnType_STRING,
 				Description: "The name of the host having the package.",
 				Transform:   transform.FromField("HostName"),
-			},
-			{
-				Name:        "cves",
-				Type:        proto.ColumnType_JSON,
-				Description: "The CVE applicabe to this host.",
-				Transform:   transform.FromField("CVEs"),
 			},
 		},
 		List: &plugin.ListConfig{
@@ -190,19 +201,20 @@ func listSatelliteHostErrata(ctx context.Context, d *plugin.QueryData, h *plugin
 	}
 
 	id := ""
-	hostid := d.KeyColumnQuals["host_id"].GetInt64Value()
+	hostid := int(d.KeyColumnQuals["host_id"].GetInt64Value())
 	hostname := d.KeyColumnQuals["host_name"].GetStringValue()
-	if hostid != 0 {
-		id = fmt.Sprintf("%d", hostid)
-	} else {
-		id = hostname
+	if hostid == 0 {
+		hostid, err = resolveHostID(ctx, d, hostname)
+		if err != nil {
+			plugin.Logger(ctx).Error("error resolving host by name", "name", hostname)
+			return nil, err
+		}
 	}
+	id = fmt.Sprintf("%d", hostid)
 	if id == "" {
 		plugin.Logger(ctx).Error("no valid host id or name provided")
 		return nil, errors.New("no valid host id or name provided")
 	}
-
-	plugin.Logger(ctx).Debug("acquired host", "id", id)
 
 	page := 1
 	for {
