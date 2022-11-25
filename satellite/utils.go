@@ -6,7 +6,7 @@ import (
 	"errors"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/turbot/steampipe-plugin-sdk/plugin"
+	"github.com/turbot/steampipe-plugin-sdk/v4/plugin"
 )
 
 var ErrNotImplemented = errors.New("not implemented")
