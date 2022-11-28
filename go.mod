@@ -3,7 +3,7 @@ module github.com/dihedron/steampipe-plugin-satellite
 go 1.19
 
 require (
-	github.com/dihedron/steampipe-plugin-utils v0.0.0-20221128103912-ee64d802b3ef
+	github.com/dihedron/steampipe-plugin-utils v0.0.0-20221128120558-3af58a99f02c
 	github.com/go-resty/resty/v2 v2.7.0
 	github.com/hashicorp/go-hclog v1.3.1
 	github.com/turbot/steampipe-plugin-sdk/v5 v5.0.0

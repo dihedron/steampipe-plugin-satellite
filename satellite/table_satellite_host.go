@@ -132,19 +132,19 @@ func tableSatelliteHost(_ context.Context) *plugin.Table {
 				Name:        "created_at",
 				Type:        proto.ColumnType_STRING,
 				Description: "The machine's creation time.",
-				Transform:   transform.FromField("CreatedAt").Transform(utils.ToTime),
+				Transform:   transform.FromField("CreatedAt").Transform(ToTime),
 			},
 			{
 				Name:        "updated_at",
 				Type:        proto.ColumnType_STRING,
 				Description: "The machine's update time.",
-				Transform:   transform.FromField("UpdatedAt").Transform(utils.ToTime),
+				Transform:   transform.FromField("UpdatedAt").Transform(ToTime),
 			},
 			{
 				Name:        "installed_at",
 				Type:        proto.ColumnType_STRING,
 				Description: "The machine's installation time.",
-				Transform:   transform.FromField("InstalledAt").Transform(utils.ToTime),
+				Transform:   transform.FromField("InstalledAt").Transform(ToTime),
 			},
 			{
 				Name:        "enabled",
@@ -437,7 +437,7 @@ type apiHost struct {
 	Build                    bool        `json:"build,omitempty" yaml:"build,omitempty"`
 	Comment                  interface{} `json:"comment,omitempty" yaml:"comment,omitempty"`
 	Disk                     interface{} `json:"disk,omitempty" yaml:"disk,omitempty"`
-	InstalledAt              *utils.Time `json:"installed_at,omitempty" yaml:"installed_at,omitempty"`
+	InstalledAt              *Time       `json:"installed_at,omitempty" yaml:"installed_at,omitempty"`
 	ModelID                  int         `json:"model_id,omitempty" yaml:"model_id,omitempty"`
 	OwnerID                  int         `json:"owner_id,omitempty" yaml:"owner_id,omitempty"`
 	OwnerName                string      `json:"owner_name,omitempty" yaml:"owner_name,omitempty"`
@@ -456,8 +456,8 @@ type apiHost struct {
 	CertName                 string      `json:"certname,omitempty" yaml:"certname,omitempty"`
 	ImageID                  interface{} `json:"image_id,omitempty" yaml:"image_id,omitempty"`
 	ImageName                interface{} `json:"image_name,omitempty" yaml:"image_name,omitempty"`
-	CreatedAt                *utils.Time `json:"created_at,omitempty" yaml:"created_at,omitempty"`
-	UpdatedAt                *utils.Time `json:"updated_at,omitempty" yaml:"updated_at,omitempty"`
+	CreatedAt                *Time       `json:"created_at,omitempty" yaml:"created_at,omitempty"`
+	UpdatedAt                *Time       `json:"updated_at,omitempty" yaml:"updated_at,omitempty"`
 	LastCompile              string      `json:"last_compile,omitempty" yaml:"last_compile,omitempty"`
 	GlobalStatus             int         `json:"global_status,omitempty" yaml:"global_status,omitempty"`
 	GlobalStatusLabel        string      `json:"global_status_label,omitempty" yaml:"global_status_label,omitempty"`
@@ -566,7 +566,7 @@ type apiHost struct {
 		ServiceLevel      string        `json:"service_level,omitempty" yaml:"service_level,omitempty"`
 		ReleaseVersion    interface{}   `json:"release_version,omitempty" yaml:"release_version,omitempty"`
 		Autoheal          bool          `json:"autoheal,omitempty" yaml:"autoheal,omitempty"`
-		RegisteredAt      *utils.Time   `json:"registered_at,omitempty" yaml:"registered_at,omitempty"`
+		RegisteredAt      *Time         `json:"registered_at,omitempty" yaml:"registered_at,omitempty"`
 		RegisteredThrough string        `json:"registered_through,omitempty" yaml:"registered_through,omitempty"`
 		PurposeRole       string        `json:"purpose_role,omitempty" yaml:"purpose_role,omitempty"`
 		PurposeUsage      string        `json:"purpose_usage,omitempty" yaml:"purpose_usage,omitempty"`

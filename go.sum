@@ -109,8 +109,8 @@ github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2 h1:tdlZCpZ/P9DhczC
 github.com/dgryski/go-farm v0.0.0-20190423205320-6a90982ecee2/go.mod h1:SqUrOPUnsFjfmXRMNPybcSiG0BgUW2AuFH8PAnS2iTw=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f h1:lO4WD4F/rVNCu3HqELle0jiPLLBs70cWOduZpkS1E78=
 github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f/go.mod h1:cuUVRXasLTGF7a8hSLbxyZXjz+1KgoB3wDUb6vlszIc=
-github.com/dihedron/steampipe-plugin-utils v0.0.0-20221128103912-ee64d802b3ef h1:cGCHy7PM1mfq4gzPoueFQeRuGLED9PrF/hV0KiC6/5g=
-github.com/dihedron/steampipe-plugin-utils v0.0.0-20221128103912-ee64d802b3ef/go.mod h1:w8lewLRPbhUUAlrYkC0P5MKfq4Fon5XX8cXoD9z9AdM=
+github.com/dihedron/steampipe-plugin-utils v0.0.0-20221128120558-3af58a99f02c h1:EavXIatb4AtgDrzmJlSHccWgOTwTUthoGY/IlKdSduA=
+github.com/dihedron/steampipe-plugin-utils v0.0.0-20221128120558-3af58a99f02c/go.mod h1:w8lewLRPbhUUAlrYkC0P5MKfq4Fon5XX8cXoD9z9AdM=
 github.com/docker/spdystream v0.0.0-20160310174837-449fdfce4d96/go.mod h1:Qh8CwZgvJUkLughtfhJv5dyTYa91l1fOUCrgjqmcifM=
 github.com/docopt/docopt-go v0.0.0-20180111231733-ee0de3bc6815/go.mod h1:WwZ+bS3ebgob9U8Nd0kOddGdZWjyMGR8Wziv+TBNwSE=
 github.com/dustin/go-humanize v1.0.0 h1:VSnTsYCnlFHaM2/igO1h6X3HA71jcobQuxemgkq4zYo=
