@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/turbot/steampipe-plugin-sdk/v4/grpc/proto"
-	"github.com/turbot/steampipe-plugin-sdk/v4/plugin"
-	"github.com/turbot/steampipe-plugin-sdk/v4/plugin/transform"
+	"github.com/dihedron/steampipe-plugin-utils/utils"
+	"github.com/turbot/steampipe-plugin-sdk/v5/grpc/proto"
+	"github.com/turbot/steampipe-plugin-sdk/v5/plugin"
+	"github.com/turbot/steampipe-plugin-sdk/v5/plugin/transform"
 )
 
 //// TABLE DEFINITION
@@ -116,7 +117,7 @@ func tableSatelliteHostPackage(_ context.Context) *plugin.Table {
 
 func listSatelliteHostPackage(ctx context.Context, d *plugin.QueryData, h *plugin.HydrateData) (interface{}, error) {
 	setLogLevel(ctx, d)
-	plugin.Logger(ctx).Debug("retrieving satellite package list for host", "query data", toJSON(d))
+	plugin.Logger(ctx).Debug("retrieving satellite package list for host", "query data", utils.ToJSON(d))
 
 	client, err := getClient(ctx, d)
 	if err != nil {
@@ -125,8 +126,8 @@ func listSatelliteHostPackage(ctx context.Context, d *plugin.QueryData, h *plugi
 	}
 
 	id := ""
-	hostid := int(d.KeyColumnQuals["host_id"].GetInt64Value())
-	hostname := d.KeyColumnQuals["host_name"].GetStringValue()
+	hostid := int(d.EqualsQuals["host_id"].GetInt64Value())
+	hostname := d.EqualsQuals["host_name"].GetStringValue()
 	if hostid == 0 {
 		hostid, err = resolveHostID(ctx, d, hostname)
 		if err != nil {
@@ -170,10 +171,10 @@ func listSatelliteHostPackage(ctx context.Context, d *plugin.QueryData, h *plugi
 		response, err := request.Get("/hosts/{id}/packages")
 
 		if err != nil || response.IsError() {
-			plugin.Logger(ctx).Error("error performing request", "status", response.Status(), "error", err, "response", toPrettyJSON(response.Body()))
+			plugin.Logger(ctx).Error("error performing request", "status", response.Status(), "error", err, "response", utils.ToPrettyJSON(response.Body()))
 			return nil, fmt.Errorf("request %q error %d (%s): %w", request.URL, response.StatusCode(), response.Status(), err)
 		}
-		plugin.Logger(ctx).Debug("request successful", "status", response.Status(), "total", result.Total, "subtotal", result.Subtotal, "page", result.Page, "per page", result.PerPage, "response", toJSON(response.Body()))
+		plugin.Logger(ctx).Debug("request successful", "status", response.Status(), "total", result.Total, "subtotal", result.Subtotal, "page", result.Page, "per page", result.PerPage, "response", utils.ToJSON(response.Body()))
 
 		for _, pkg := range result.Packages {
 			pkg := pkg

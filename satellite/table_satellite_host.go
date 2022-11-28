@@ -7,9 +7,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/turbot/steampipe-plugin-sdk/v4/grpc/proto"
-	"github.com/turbot/steampipe-plugin-sdk/v4/plugin"
-	"github.com/turbot/steampipe-plugin-sdk/v4/plugin/transform"
+	"github.com/dihedron/steampipe-plugin-utils/utils"
+	"github.com/turbot/steampipe-plugin-sdk/v5/grpc/proto"
+	"github.com/turbot/steampipe-plugin-sdk/v5/plugin"
+	"github.com/turbot/steampipe-plugin-sdk/v5/plugin/transform"
 )
 
 //// TABLE DEFINITION
@@ -131,19 +132,19 @@ func tableSatelliteHost(_ context.Context) *plugin.Table {
 				Name:        "created_at",
 				Type:        proto.ColumnType_STRING,
 				Description: "The machine's creation time.",
-				Transform:   TransformFromTimeField("CreatedAt"),
+				Transform:   transform.FromField("CreatedAt").Transform(utils.ToTime),
 			},
 			{
 				Name:        "updated_at",
 				Type:        proto.ColumnType_STRING,
 				Description: "The machine's update time.",
-				Transform:   TransformFromTimeField("UpdatedAt"),
+				Transform:   transform.FromField("UpdatedAt").Transform(utils.ToTime),
 			},
 			{
 				Name:        "installed_at",
 				Type:        proto.ColumnType_STRING,
 				Description: "The machine's installation time.",
-				Transform:   TransformFromTimeField("InstalledAt"),
+				Transform:   transform.FromField("InstalledAt").Transform(utils.ToTime),
 			},
 			{
 				Name:        "enabled",
@@ -167,7 +168,7 @@ func tableSatelliteHost(_ context.Context) *plugin.Table {
 				Name:        "uptime_duration",
 				Type:        proto.ColumnType_STRING,
 				Description: "The machine's uptime in seconds.",
-				Transform:   TransformFromIntFieldToDuration("UptimeSeconds"),
+				Transform:   transform.FromField("UptimeSeconds").Transform(utils.ToDuration),
 			},
 			{
 				Name:        "global_status",
@@ -234,7 +235,7 @@ func tableSatelliteHost(_ context.Context) *plugin.Table {
 
 func listSatelliteHost(ctx context.Context, d *plugin.QueryData, h *plugin.HydrateData) (interface{}, error) {
 	setLogLevel(ctx, d)
-	plugin.Logger(ctx).Debug("retrieving satellite host list", "query data", toPrettyJSON(d))
+	plugin.Logger(ctx).Debug("retrieving satellite host list", "query data", utils.ToPrettyJSON(d))
 
 	client, err := getClient(ctx, d)
 	if err != nil {
@@ -265,10 +266,10 @@ func listSatelliteHost(ctx context.Context, d *plugin.QueryData, h *plugin.Hydra
 
 		response, err := request.Get("/hosts")
 		if err != nil {
-			plugin.Logger(ctx).Error("error performing request", "error", err, "response", toJSON(response.Body()))
+			plugin.Logger(ctx).Error("error performing request", "error", err, "response", utils.ToJSON(response.Body()))
 			return nil, err
 		}
-		plugin.Logger(ctx).Debug("request successful", "total", result.Total, "subtotal", result.Subtotal, "page", result.Page, "per page", result.PerPage, "response", toJSON(response.Body()))
+		plugin.Logger(ctx).Debug("request successful", "total", result.Total, "subtotal", result.Subtotal, "page", result.Page, "per page", result.PerPage, "response", utils.ToJSON(response.Body()))
 
 		for _, host := range result.Hosts {
 			host := host
@@ -314,10 +315,10 @@ func getSatelliteHost(ctx context.Context, d *plugin.QueryData, h *plugin.Hydrat
 	setLogLevel(ctx, d)
 
 	id := ""
-	if val, ok := d.KeyColumnQuals["id"]; ok {
+	if val, ok := d.EqualsQuals["id"]; ok {
 		plugin.Logger(ctx).Debug("retrieving satellite host by id", "id", id)
 		id = fmt.Sprintf("%d", val.GetInt64Value())
-	} else if val, ok := d.KeyColumnQuals["name"]; ok {
+	} else if val, ok := d.EqualsQuals["name"]; ok {
 		plugin.Logger(ctx).Debug("retrieving satellite host by name", "name", id)
 		id = val.GetStringValue()
 	} else {
@@ -350,7 +351,7 @@ func getSatelliteHost(ctx context.Context, d *plugin.QueryData, h *plugin.Hydrat
 		return nil, err
 	}
 
-	plugin.Logger(ctx).Debug("request successful", "host", toPrettyJSON(host))
+	plugin.Logger(ctx).Debug("request successful", "host", utils.ToPrettyJSON(host))
 	return host, nil
 }
 
@@ -431,7 +432,7 @@ type apiHost struct {
 	Build                    bool        `json:"build,omitempty" yaml:"build,omitempty"`
 	Comment                  interface{} `json:"comment,omitempty" yaml:"comment,omitempty"`
 	Disk                     interface{} `json:"disk,omitempty" yaml:"disk,omitempty"`
-	InstalledAt              *Time       `json:"installed_at,omitempty" yaml:"installed_at,omitempty"`
+	InstalledAt              *utils.Time `json:"installed_at,omitempty" yaml:"installed_at,omitempty"`
 	ModelID                  int         `json:"model_id,omitempty" yaml:"model_id,omitempty"`
 	OwnerID                  int         `json:"owner_id,omitempty" yaml:"owner_id,omitempty"`
 	OwnerName                string      `json:"owner_name,omitempty" yaml:"owner_name,omitempty"`
@@ -450,8 +451,8 @@ type apiHost struct {
 	CertName                 string      `json:"certname,omitempty" yaml:"certname,omitempty"`
 	ImageID                  interface{} `json:"image_id,omitempty" yaml:"image_id,omitempty"`
 	ImageName                interface{} `json:"image_name,omitempty" yaml:"image_name,omitempty"`
-	CreatedAt                *Time       `json:"created_at,omitempty" yaml:"created_at,omitempty"`
-	UpdatedAt                *Time       `json:"updated_at,omitempty" yaml:"updated_at,omitempty"`
+	CreatedAt                *utils.Time `json:"created_at,omitempty" yaml:"created_at,omitempty"`
+	UpdatedAt                *utils.Time `json:"updated_at,omitempty" yaml:"updated_at,omitempty"`
 	LastCompile              string      `json:"last_compile,omitempty" yaml:"last_compile,omitempty"`
 	GlobalStatus             int         `json:"global_status,omitempty" yaml:"global_status,omitempty"`
 	GlobalStatusLabel        string      `json:"global_status_label,omitempty" yaml:"global_status_label,omitempty"`
@@ -560,7 +561,7 @@ type apiHost struct {
 		ServiceLevel      string        `json:"service_level,omitempty" yaml:"service_level,omitempty"`
 		ReleaseVersion    interface{}   `json:"release_version,omitempty" yaml:"release_version,omitempty"`
 		Autoheal          bool          `json:"autoheal,omitempty" yaml:"autoheal,omitempty"`
-		RegisteredAt      *Time         `json:"registered_at,omitempty" yaml:"registered_at,omitempty"`
+		RegisteredAt      *utils.Time   `json:"registered_at,omitempty" yaml:"registered_at,omitempty"`
 		RegisteredThrough string        `json:"registered_through,omitempty" yaml:"registered_through,omitempty"`
 		PurposeRole       string        `json:"purpose_role,omitempty" yaml:"purpose_role,omitempty"`
 		PurposeUsage      string        `json:"purpose_usage,omitempty" yaml:"purpose_usage,omitempty"`

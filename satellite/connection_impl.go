@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/turbot/steampipe-plugin-sdk/v4/plugin"
+	"github.com/turbot/steampipe-plugin-sdk/v5/plugin"
 )
 
 const SatelliteClientKey = "satellite_client"
