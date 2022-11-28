@@ -244,6 +244,7 @@ func listSatelliteHost(ctx context.Context, d *plugin.QueryData, h *plugin.Hydra
 	}
 
 	page := 1
+loop:
 	for {
 		request := client.
 			R().
@@ -264,7 +265,7 @@ func listSatelliteHost(ctx context.Context, d *plugin.QueryData, h *plugin.Hydra
 		}{}
 		request.SetResult(result)
 
-		response, err := request.Get("/hosts")
+		response, err := request.Get("/api/hosts")
 		if err != nil {
 			plugin.Logger(ctx).Error("error performing request", "error", err, "response", utils.ToJSON(response.Body()))
 			return nil, err
@@ -272,6 +273,10 @@ func listSatelliteHost(ctx context.Context, d *plugin.QueryData, h *plugin.Hydra
 		plugin.Logger(ctx).Debug("request successful", "total", result.Total, "subtotal", result.Subtotal, "page", result.Page, "per page", result.PerPage, "response", utils.ToJSON(response.Body()))
 
 		for _, host := range result.Hosts {
+			if ctx.Err() != nil {
+				plugin.Logger(ctx).Debug("context done, exit")
+				break loop
+			}
 			host := host
 			d.StreamListItem(ctx, &host)
 		}
@@ -340,7 +345,7 @@ func getSatelliteHost(ctx context.Context, d *plugin.QueryData, h *plugin.Hydrat
 
 	host := &apiHost{}
 	request.SetResult(host)
-	response, err := request.Get("/hosts/{id}")
+	response, err := request.Get("/api/hosts/{id}")
 	if err != nil || response.IsError() {
 		plugin.Logger(ctx).Error("error performing request", "url", response.Request.URL, "status", response.Status, "error", err)
 		if err != nil {

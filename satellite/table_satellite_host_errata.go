@@ -218,6 +218,7 @@ func listSatelliteHostErrata(ctx context.Context, d *plugin.QueryData, h *plugin
 	}
 
 	page := 1
+loop:
 	for {
 		request := client.
 			R().
@@ -243,7 +244,7 @@ func listSatelliteHostErrata(ctx context.Context, d *plugin.QueryData, h *plugin
 			Errata []apiErrata `json:"results"`
 		}{}
 		request.SetResult(result)
-		response, err := request.Get("/hosts/{id}/errata")
+		response, err := request.Get("/api/hosts/{id}/errata")
 		if err != nil || response.IsError() {
 			plugin.Logger(ctx).Error("error performing request", "url", response.Request.URL, "status", response, response.Status(), "error", err, "response", utils.ToPrettyJSON(response.Body()))
 			return nil, fmt.Errorf("request %q failed with status %d (%s): %w", response.Request.URL, response.StatusCode(), response.Status(), err)
@@ -251,6 +252,11 @@ func listSatelliteHostErrata(ctx context.Context, d *plugin.QueryData, h *plugin
 		plugin.Logger(ctx).Debug("request successful", "total", result.Total, "subtotal", result.Subtotal, "page", result.Page, "per page", result.PerPage, "response", utils.ToJSON(response.Body()))
 
 		for _, errata := range result.Errata {
+			if ctx.Err() != nil {
+				plugin.Logger(ctx).Debug("context done, exit")
+				break loop
+			}
+
 			errata := errata
 			//plugin.Logger(ctx).Debug("package", "contents", toJSON(pkg))
 			d.StreamListItem(ctx, &struct {

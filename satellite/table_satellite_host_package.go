@@ -142,6 +142,7 @@ func listSatelliteHostPackage(ctx context.Context, d *plugin.QueryData, h *plugi
 	}
 
 	page := 1
+loop:
 	for {
 		request := client.
 			R().
@@ -163,12 +164,12 @@ func listSatelliteHostPackage(ctx context.Context, d *plugin.QueryData, h *plugi
 				By    string `json:"by"`
 				Order string `json:"order"`
 			} `json:"sort"`
-			Packages []apiPackage `json:"results"`
+			Packages []apiHostPackage `json:"results"`
 		}{}
 		request.SetResult(result)
 		plugin.Logger(ctx).Debug("running request", "id", id)
 		// response, err := request.Get(fmt.Sprintf("/hosts/{id}/packages?page=%d", page))
-		response, err := request.Get("/hosts/{id}/packages")
+		response, err := request.Get("/api/hosts/{id}/packages")
 
 		if err != nil || response.IsError() {
 			plugin.Logger(ctx).Error("error performing request", "status", response.Status(), "error", err, "response", utils.ToPrettyJSON(response.Body()))
@@ -177,16 +178,20 @@ func listSatelliteHostPackage(ctx context.Context, d *plugin.QueryData, h *plugi
 		plugin.Logger(ctx).Debug("request successful", "status", response.Status(), "total", result.Total, "subtotal", result.Subtotal, "page", result.Page, "per page", result.PerPage, "response", utils.ToJSON(response.Body()))
 
 		for _, pkg := range result.Packages {
+			if ctx.Err() != nil {
+				plugin.Logger(ctx).Debug("context done, exit")
+				break loop
+			}
 			pkg := pkg
 			//plugin.Logger(ctx).Debug("package", "contents", toJSON(pkg))
 			d.StreamListItem(ctx, &struct {
 				HostID   int    `json:"host_id,omitempty" yaml:"host_id,omitempty"`
 				HostName string `json:"host_name,omitempty" yaml:"host_name,omitempty"`
-				apiPackage
+				apiHostPackage
 			}{
-				HostID:     int(hostid),
-				HostName:   hostname,
-				apiPackage: pkg,
+				HostID:         int(hostid),
+				HostName:       hostname,
+				apiHostPackage: pkg,
 			})
 		}
 
@@ -223,7 +228,7 @@ func listSatelliteHostPackage(ctx context.Context, d *plugin.QueryData, h *plugi
 	return nil, nil
 }
 
-type apiPackage struct {
+type apiHostPackage struct {
 	ID    int    `json:"id,omitempty" yaml:"id,omitempty"`
 	Name  string `json:"name,omitempty" yaml:"name,omitempty"`
 	NVREA string `json:"nvrea,omitempty" yaml:"nvrea,omitempty"`
