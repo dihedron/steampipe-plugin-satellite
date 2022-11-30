@@ -2,7 +2,6 @@ package satellite
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 
@@ -164,28 +163,14 @@ func tableSatelliteHostErrata(_ context.Context) *plugin.Table {
 			KeyColumns: plugin.KeyColumnSlice{
 				&plugin.KeyColumn{
 					Name:    "host_id",
-					Require: plugin.AnyOf,
+					Require: plugin.Optional,
 				},
 				&plugin.KeyColumn{
 					Name:    "host_name",
-					Require: plugin.AnyOf,
+					Require: plugin.Optional,
 				},
 			},
 		},
-		// Get: &plugin.GetConfig{
-		// 	KeyColumns: plugin.KeyColumnSlice{
-		// 		&plugin.KeyColumn{
-		// 			Name:    "id",
-		// 			Require: plugin.Optional,
-		// 		},
-		// 		&plugin.KeyColumn{
-		// 			Name:    "name",
-		// 			Require: plugin.Optional,
-		// 		},
-		// 	},
-		// 	// plugin.SingleColumn("id"),
-		// 	Hydrate: getSatelliteHostPackage,
-		// },
 	}
 }
 
@@ -201,102 +186,139 @@ func listSatelliteHostErrata(ctx context.Context, d *plugin.QueryData, h *plugin
 		return nil, err
 	}
 
-	id := ""
-	hostid := int(d.EqualsQuals["host_id"].GetInt64Value())
-	hostname := d.EqualsQuals["host_name"].GetStringValue()
-	if hostid == 0 {
-		hostid, err = resolveHostID(ctx, d, hostname)
+	// id := ""
+	// hostid := int(d.EqualsQuals["host_id"].GetInt64Value())
+	// hostname := d.EqualsQuals["host_name"].GetStringValue()
+	// if hostid == 0 {
+	// 	hostid, err = resolveHostID(ctx, d, hostname)
+	// 	if err != nil {
+	// 		plugin.Logger(ctx).Error("error resolving host by name", "name", hostname)
+	// 		return nil, err
+	// 	}
+	// }
+	// id = fmt.Sprintf("%d", hostid)
+	// if id == "" {
+	// 	plugin.Logger(ctx).Error("no valid host id or name provided")
+	// 	return nil, errors.New("no valid host id or name provided")
+	// }
+
+	hosts := []apiHost{}
+
+	// first, check if running against a single host
+	single := apiHost{
+		ID:   int(d.EqualsQuals["host_id"].GetInt64Value()),
+		Name: d.EqualsQuals["host_name"].GetStringValue(),
+	}
+	if single.ID != 0 {
+		plugin.Logger(ctx).Debug("running query against single host", "host", utils.ToPrettyJSON(single))
+		hosts = append(hosts, single)
+	} else if single.Name != "" {
+		id, err := resolveHostID(ctx, d, single.Name)
 		if err != nil {
-			plugin.Logger(ctx).Error("error resolving host by name", "name", hostname)
+			plugin.Logger(ctx).Error("error resolving host by name", "name", single.Name)
+			return nil, err
+		}
+		single.ID = id
+		hosts = append(hosts, single)
+	} else {
+		hosts, err = listSatelliteHostImpl(ctx, client, true)
+		if err != nil {
+			plugin.Logger(ctx).Error("error getting list of hosts", "error", err)
 			return nil, err
 		}
 	}
-	id = fmt.Sprintf("%d", hostid)
-	if id == "" {
-		plugin.Logger(ctx).Error("no valid host id or name provided")
-		return nil, errors.New("no valid host id or name provided")
-	}
 
-	page := 1
-loop:
-	for {
-		request := client.
-			R().
-			SetContext(ctx).
-			SetPathParam("id", id).
-			SetQueryParam("page", fmt.Sprintf("%d", page))
+	plugin.Logger(ctx).Debug("retrieving errata from hosts", "hosts", utils.ToPrettyJSON(hosts))
 
-		request.SetHeaders(map[string]string{
-			"Accept-Encoding": "gzip",
-			"Accept":          "text/html",
-		})
-		result := &struct {
-			Total    int         `json:"total"`
-			Subtotal int         `json:"subtotal"`
-			Page     interface{} `json:"page"`
-			PerPage  int         `json:"per_page"`
-			Error    interface{} `json:"error"`
-			Search   interface{} `json:"search"`
-			Sort     struct {
-				By    string `json:"by"`
-				Order string `json:"order"`
-			} `json:"sort"`
-			Errata []apiErrata `json:"results"`
-		}{}
-		request.SetResult(result)
-		response, err := request.Get("/api/hosts/{id}/errata")
-		if err != nil || response.IsError() {
-			plugin.Logger(ctx).Error("error performing request", "url", response.Request.URL, "status", response, response.Status(), "error", err, "response", utils.ToPrettyJSON(response.Body()))
-			return nil, fmt.Errorf("request %q failed with status %d (%s): %w", response.Request.URL, response.StatusCode(), response.Status(), err)
-		}
-		plugin.Logger(ctx).Debug("request successful", "total", result.Total, "subtotal", result.Subtotal, "page", result.Page, "per page", result.PerPage, "response", utils.ToJSON(response.Body()))
+outer:
+	for _, host := range hosts {
+		host := host
 
-		for _, errata := range result.Errata {
-			if ctx.Err() != nil {
-				plugin.Logger(ctx).Debug("context done, exit")
-				break loop
+		id := fmt.Sprintf("%d", host.ID)
+
+		plugin.Logger(ctx).Debug("running query against host", "id", id, "name", host.Name)
+
+		page := 1
+
+		for {
+			request := client.
+				R().
+				SetContext(ctx).
+				SetPathParam("id", id).
+				SetQueryParam("page", fmt.Sprintf("%d", page))
+
+			request.SetHeaders(map[string]string{
+				"Accept-Encoding": "gzip",
+				"Accept":          "text/html",
+			})
+			result := &struct {
+				Total    int         `json:"total"`
+				Subtotal int         `json:"subtotal"`
+				Page     interface{} `json:"page"`
+				PerPage  int         `json:"per_page"`
+				Error    interface{} `json:"error"`
+				Search   interface{} `json:"search"`
+				Sort     struct {
+					By    string `json:"by"`
+					Order string `json:"order"`
+				} `json:"sort"`
+				Errata []apiErrata `json:"results"`
+			}{}
+			request.SetResult(result)
+			response, err := request.Get("/api/hosts/{id}/errata")
+			if err != nil || response.IsError() {
+				plugin.Logger(ctx).Error("error performing request", "url", response.Request.URL, "status", response, response.Status(), "error", err, "response", utils.ToPrettyJSON(response.Body()))
+				return nil, fmt.Errorf("request %q failed with status %d (%s): %w", response.Request.URL, response.StatusCode(), response.Status(), err)
+			}
+			plugin.Logger(ctx).Debug("request successful", "total", result.Total, "subtotal", result.Subtotal, "page", result.Page, "per page", result.PerPage, "response", utils.ToJSON(response.Body()))
+
+			for _, errata := range result.Errata {
+				if ctx.Err() != nil {
+					plugin.Logger(ctx).Debug("context done, exit")
+					break outer
+				}
+
+				errata := errata
+				//plugin.Logger(ctx).Debug("package", "contents", toJSON(pkg))
+				d.StreamListItem(ctx, &struct {
+					HostID   int    `json:"host_id,omitempty" yaml:"host_id,omitempty"`
+					HostName string `json:"host_name,omitempty" yaml:"host_name,omitempty"`
+					apiErrata
+				}{
+					HostID:    host.ID,
+					HostName:  host.Name,
+					apiErrata: errata,
+				})
 			}
 
-			errata := errata
-			//plugin.Logger(ctx).Debug("package", "contents", toJSON(pkg))
-			d.StreamListItem(ctx, &struct {
-				HostID   int    `json:"host_id,omitempty" yaml:"host_id,omitempty"`
-				HostName string `json:"host_name,omitempty" yaml:"host_name,omitempty"`
-				apiErrata
-			}{
-				HostID:    int(hostid),
-				HostName:  hostname,
-				apiErrata: errata,
-			})
-		}
-
-		// handle pagination. Note that the Satellite API returns results.Page as an
-		// integer if there is no page?{page} query  parameter, and as a string if you
-		// set one; thus we need to handle both cases
-		resultPage := 0
-		switch v := result.Page.(type) {
-		case int:
-			resultPage = v
-		case int32:
-			resultPage = int(v)
-		case int64:
-			resultPage = int(v)
-		case float32:
-			resultPage = int(v)
-		case float64:
-			resultPage = int(v)
-		case string:
-			resultPage, _ = strconv.Atoi(v)
-		default:
-			plugin.Logger(ctx).Debug("unsupported type in pagination", "type", fmt.Sprintf("%T", result.Page))
-			return nil, fmt.Errorf("unexpected type in pagination API result: %T", result.Page)
-		}
-		if result.PerPage*resultPage < result.Total {
-			page++
-			plugin.Logger(ctx).Debug("retrieving next page", "page", page)
-		} else {
-			plugin.Logger(ctx).Debug("all pages retrieved", "subtotal", result.Subtotal, "total", result.Total)
-			break
+			// handle pagination. Note that the Satellite API returns results.Page as an
+			// integer if there is no page?{page} query  parameter, and as a string if you
+			// set one; thus we need to handle both cases
+			resultPage := 0
+			switch v := result.Page.(type) {
+			case int:
+				resultPage = v
+			case int32:
+				resultPage = int(v)
+			case int64:
+				resultPage = int(v)
+			case float32:
+				resultPage = int(v)
+			case float64:
+				resultPage = int(v)
+			case string:
+				resultPage, _ = strconv.Atoi(v)
+			default:
+				plugin.Logger(ctx).Debug("unsupported type in pagination", "type", fmt.Sprintf("%T", result.Page))
+				return nil, fmt.Errorf("unexpected type in pagination API result: %T", result.Page)
+			}
+			if result.PerPage*resultPage < result.Total {
+				page++
+				plugin.Logger(ctx).Debug("retrieving next page", "page", page)
+			} else {
+				plugin.Logger(ctx).Debug("all pages retrieved", "subtotal", result.Subtotal, "total", result.Total)
+				break
+			}
 		}
 	}
 
