@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/dihedron/steampipe-plugin-utils/utils"
+	"github.com/go-resty/resty/v2"
 	"github.com/turbot/steampipe-plugin-sdk/v5/grpc/proto"
 	"github.com/turbot/steampipe-plugin-sdk/v5/plugin"
 	"github.com/turbot/steampipe-plugin-sdk/v5/plugin/transform"
@@ -243,6 +244,29 @@ func listSatelliteHost(ctx context.Context, d *plugin.QueryData, h *plugin.Hydra
 		return nil, err
 	}
 
+	hosts, err := listSatelliteHostImpl(ctx, client, false)
+	if err != nil {
+		plugin.Logger(ctx).Error("error retrieving list of hosts", "error", err)
+		return nil, err
+	}
+
+	for _, host := range hosts {
+		host := host
+		if ctx.Err() != nil {
+			plugin.Logger(ctx).Debug("context done, exit")
+			break
+		}
+		d.StreamListItem(ctx, &host)
+	}
+
+	return nil, nil
+}
+
+func listSatelliteHostImpl(ctx context.Context, client *resty.Client, thin bool) ([]apiHost, error) {
+	plugin.Logger(ctx).Debug("retrieving satellite host list")
+
+	hosts := []apiHost{}
+
 	page := 1
 loop:
 	for {
@@ -250,6 +274,10 @@ loop:
 			R().
 			SetContext(ctx).
 			SetQueryParam("page", fmt.Sprintf("%d", page))
+
+		if thin {
+			request.SetQueryParam("thin", "true")
+		}
 
 		result := &struct {
 			Total    int         `json:"total"`
@@ -273,12 +301,12 @@ loop:
 		plugin.Logger(ctx).Debug("request successful", "total", result.Total, "subtotal", result.Subtotal, "page", result.Page, "per page", result.PerPage, "response", utils.ToJSON(response.Body()))
 
 		for _, host := range result.Hosts {
+			host := host
 			if ctx.Err() != nil {
 				plugin.Logger(ctx).Debug("context done, exit")
 				break loop
 			}
-			host := host
-			d.StreamListItem(ctx, &host)
+			hosts = append(hosts, host)
 		}
 
 		// handle pagination. Note that the Satellite API returns results.Page as an
@@ -311,7 +339,7 @@ loop:
 		}
 	}
 
-	return nil, nil
+	return hosts, nil
 }
 
 //// HYDRATE FUNCTIONS
@@ -383,11 +411,12 @@ func resolveHostID(ctx context.Context, d *plugin.QueryData, name string) (int, 
 	request := client.
 		R().
 		SetContext(ctx).
-		SetPathParam("id", name)
+		SetPathParam("id", name).
+		SetQueryParam("thin", "true")
 
 	host := &apiHost{}
 	request.SetResult(host)
-	response, err := request.Get("/hosts/{id}")
+	response, err := request.Get("/api/hosts/{id}")
 	if err != nil || response.IsError() {
 		plugin.Logger(ctx).Error("error performing request", "url", response.Request.URL, "status", response.Status, "error", err)
 		if err != nil {
